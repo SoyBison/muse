@@ -67,7 +67,7 @@ class Oscillator(ABC):
     
     @abstractmethod
     def _initialize_osc(self):
-        raise NotImplemented
+        raise NotImplementedError
     
     @staticmethod
     def squish_val(val, min_val=0, max_val=1):
@@ -85,6 +85,42 @@ class Oscillator(ABC):
 
     def __add__(self, other):
         return CombinedOscillator(self, other)
+
+    def __mul__(self, other):
+        return FilteredOscillator(self, other)
+
+
+class FilteredOscillator(Oscillator):
+    def __init__(self, oa: Oscillator, ob: Oscillator):
+        self._oa = oa
+        self._ob = ob
+        self._oa._initialize_osc()
+        self._ob._initialize_osc()
+        self._freq = None
+        self._phase = None
+        self._amp = None
+        self._f = None
+        self._p = None
+        self._a = None
+
+        self._wave_range = self._oa._wave_range
+        self._a_range = self._oa._wave_range[1] - self._oa._wave_range[0]
+        self._b_range = self._ob._wave_range[1] - self._ob._wave_range[0]
+        self._new_range = self._wave_range[1] - self._wave_range[0]
+        self.n_children = 2
+        if isinstance(self._oa, CombinedOscillator):
+            self.n_children -= 1
+            self.n_children += self._oa.n_children
+        if isinstance(self._ob, CombinedOscillator):
+            self.n_children -= 1
+            self.n_children += self._ob.n_children
+    
+    def _initialize_osc(self):
+        self._oa._initialize_osc()
+        self._ob._initialize_osc()
+
+    def __next__(self):
+        return next(self._oa) * ((next(self._ob) - self._ob._wave_range[0]) / self._b_range)
 
 class CombinedOscillator(Oscillator):
     def __init__(self, oa: Oscillator, ob: Oscillator):
@@ -124,7 +160,7 @@ class CombinedOscillator(Oscillator):
         if isinstance(self._ob, CombinedOscillator):
             adj_b *= self._ob.n_children
         return (adj_a + adj_b) / self.n_children
-        
+
 
 class SineOscillator(Oscillator):
     def _post_freq_set(self):
@@ -139,7 +175,7 @@ class SineOscillator(Oscillator):
     def __next__(self):
         val = math.sin(self._i + self._p)
         self._i = self._i + self._step
-        if self._wave_range is not (-1, 1):
+        if self._wave_range != (-1, 1):
             val = self.squish_val(val, *self._wave_range)
         return val * self._a
 
@@ -173,7 +209,7 @@ class SawtoothOscillator(Oscillator):
         div = (self._i + self._p )/self._period
         val = 2 * (div - math.floor(0.5 + div))
         self._i = self._i + 1
-        if self._wave_range is not (-1, 1):
+        if self._wave_range != (-1, 1):
             val = self.squish_val(val, *self._wave_range)
         return val * self._a
 
@@ -183,6 +219,6 @@ class TriangleOscillator(SawtoothOscillator):
         val = 2 * (div - math.floor(0.5 + div))
         val = (abs(val) - 0.5) * 2
         self._i = self._i + 1
-        if self._wave_range is not (-1, 1):
+        if self._wave_range != (-1, 1):
             val = self.squish_val(val, *self._wave_range)
         return val * self._a

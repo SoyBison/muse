@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 from itertools import product
-from lib.oscillator import *
+from lib.oscillator import SineOscillator
 from scipy.io import wavfile
 import numpy as np
+import math
 
 from random import uniform, choice
 
